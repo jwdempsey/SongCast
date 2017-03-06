@@ -1,0 +1,7 @@
+tunnels:
+  songcast:
+    proto: http
+    addr: 3000
+    host_header: rewrite 3000
+    bind_tls: true
+  cast:

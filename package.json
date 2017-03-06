@@ -1,0 +1,22 @@
+{
+  "name": "SongCast",
+  "version": "1.0.0",
+  "description": "Alexa skill to play Spotify on Chromecast devices",
+  "main": "index.js",
+  "author": "Joe Dempsey",
+  "license": "ISC",
+  "dependencies": {
+    "alexa-app": "^3.0.0",
+    "bluebird": "^3.4.7",
+    "castv2-client": "^1.2.0",
+    "express": "^4.14.0",
+    "lame": "^1.2.4",
+    "libspotify": "git+https://github.com/FylmTM/node-libspotify.git",
+    "mdns": "^2.3.3",
+    "ngrok": "^2.2.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:jwdempsey/SongCast.bundle.git"
+  }
+}
