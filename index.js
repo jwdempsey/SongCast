@@ -1,8 +1,7 @@
-//ngrok start --all -config ~/repos/SongCast/ngrok.yml
-var express  	= require('express');
-var alexa 		= require('alexa-app');
-var Spotify		= require('./spotify');
-var Cast		= require('./cast');
+var express	= require('express');
+var alexa	= require('alexa-app');
+var Spotify = require('./spotify');
+var Cast	= require('./cast');
 
 var alexaApp = new alexa.app('SongCast');
 var app = express();
