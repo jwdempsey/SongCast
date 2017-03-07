@@ -20,12 +20,12 @@ alexaApp.launch(function (req, res) {
 });
 
 alexaApp.intent('PlayTrackIntent', {
-		'slots': {
-			'track': 'AMAZON.MusicRecording',
-			'artist': 'AMAZON.MusicGroup',
-			'device': 'AMAZON.LITERAL'
-		},
-		'utterances': ['Play {-|track} by {-|artist} on {-|device}']
+	'slots': {
+		'track': 'AMAZON.MusicRecording',
+		'artist': 'AMAZON.MusicGroup',
+		'device': 'AMAZON.LITERAL'
+	},
+	'utterances': ['Play {-|track} by {-|artist} on {-|device}']
 	},
 	function (request, response) {
 		spotify.search(request.slot('artist'), request.slot('track'))
