@@ -2,6 +2,7 @@ var lame = require('lame');
 var libspotify = require('libspotify');
 var express = require('express');
 var Promise = require("bluebird");
+var dotenv = require('dotenv');
 
 function Spotify() {
 	var self = this;
@@ -13,12 +14,13 @@ function Spotify() {
 }
 
 Spotify.prototype._login = function () {
+	dotenv.load();
 	this._session = new libspotify.Session({
 		applicationKey: __dirname + '/spotify_appkey.key'
 	});
 
 	if (!this._session.isLoggedIn()) {
-		this._session.login(process.env['username'], process.env['password']);
+		this._session.login(process.env.username, process.env.password);
 	}
 }
 

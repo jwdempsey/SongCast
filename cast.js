@@ -1,4 +1,4 @@
-var client = require('castv2-client').Client;
+var Client = require('castv2-client').Client;
 var DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver;
 var mdns = require('mdns');
 var util = require('util');
@@ -8,8 +8,7 @@ function Cast(item) {
 	var self = this;
 	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
-		if ('device' in item &&
-			'fn' in service.txtRecord &&
+		if (item.device &&
 			service.txtRecord.fn.toLowerCase() === item.device.toLowerCase()) {
 			self._ondeviceup(service.addresses[0], item);
 		}

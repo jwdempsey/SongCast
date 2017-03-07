@@ -9,6 +9,7 @@
     "alexa-app": "^3.0.0",
     "bluebird": "^3.4.7",
     "castv2-client": "^1.2.0",
+    "dotenv": "^4.0.0",
     "express": "^4.14.0",
     "lame": "^1.2.4",
     "libspotify": "git+https://github.com/FylmTM/node-libspotify.git",
