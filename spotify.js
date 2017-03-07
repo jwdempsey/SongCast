@@ -1,7 +1,7 @@
-var lame		= require('lame');
-var libspotify	= require('libspotify');
-var express		= require('express');
-var Promise		= require("bluebird");
+var lame = require('lame');
+var libspotify = require('libspotify');
+var express = require('express');
+var Promise = require("bluebird");
 
 function Spotify() {
 	var self = this;

@@ -1,8 +1,8 @@
-var client					= require('castv2-client').Client;
-var DefaultMediaReceiver 	= require('castv2-client').DefaultMediaReceiver;
-var mdns					= require('mdns');
-var util					= require('util');
-var ngrok					= require('ngrok');
+var client = require('castv2-client').Client;
+var DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver;
+var mdns = require('mdns');
+var util = require('util');
+var ngrok = require('ngrok');
 
 function Cast(item) {
 	var self = this;
