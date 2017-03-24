@@ -1,66 +1,338 @@
+var dotenv = require('dotenv');
+var EventEmitter = require("events").EventEmitter;
+var express = require('express');
 var lame = require('lame');
 var libspotify = require('libspotify');
-var express = require('express');
 var Promise = require("bluebird");
-var dotenv = require('dotenv');
+var rp = require('request-promise');
+var util = require('util');
 
 function Spotify() {
 	var self = this;
-	this._session;
-	this._app = express();
-	this._app.get('/:type/:id', function(req, res) { self._play.call(self, req, res); });
-	this._app.listen(9001);
-	this._login();
-}
-
-Spotify.prototype._login = function () {
 	dotenv.load();
-	this._session = new libspotify.Session({
+	EventEmitter.call(this);
+	this.encoder = lame.Encoder({ channels: 2, bitDepth: 16, sampleRate: 44100 });
+
+	this.playlists = [];
+	this.queue = [];
+	this.port = 9001;
+	this.searchUrl = 'https://api.spotify.com/v1/search?type=%s&q=%s';
+	this.tracksFromArtist = 'https://api.spotify.com/v1/artists/%s/top-tracks?country=US';
+	this.tracksFromAlbum = 'https://api.spotify.com/v1/albums/%s/tracks';
+	this.defaultImage = 'https://developer.spotify.com/wp-content/uploads/2016/07/icon3@2x.png'
+	this.defaultError = 'I could not find any %s with that name';
+
+	this.session = new libspotify.Session({
 		applicationKey: __dirname + '/spotify_appkey.key'
 	});
+	this.session.login(process.env.username, process.env.password);
+	this.session.once('login', function(err) {
+		self.getUserPlaylists.call(self);
 
-	if (!this._session.isLoggedIn()) {
-		this._session.login(process.env.username, process.env.password);
-	}
+		self.app = express();
+		self.app.get('/:type/:id', function(req, res) {
+			self.startStream.call(self, req, res);
+
+			self.player.on('track-end', function() {
+				self.playNext.call(self, req, res);
+			});
+		});
+		self.app.listen(self.port);
+	});
+
+	this.player = this.session.getPlayer();
+	this.player.pipe(this.encoder);
 }
 
-Spotify.prototype._play = function (req, res) {
-	var self = this;
+util.inherits(Spotify, EventEmitter);
+
+Spotify.prototype.startStream = function (req, res) {
+	this.queue = [];
 	res.writeHead(200, {
 		'Content-Type': 'audio/mpeg'
 	});
 
-	var encoder = lame.Encoder({
-		channels: 2,
-		bitDepth: 16,
-		sampleRate: 44100
-	});
-
-	encoder.on('data', function(data) {
+	this.encoder.on('data', function(data) {
 		res.write(data);
 	});
 
-	var track = libspotify.Track.getFromUrl(req.params.id);
-	track.whenReady(function() {
-		var player = self._session.getPlayer();
-		player.load(track);
-		player.play();
-		player.pipe(encoder);
+	this.loadTrack({
+		type: req.params.type,
+		id: req.params.id
 	});
 }
 
-Spotify.prototype.search = function (artist, song) {
-	return new Promise(function (resolve, reject) {
-		var search = new libspotify.Search('track:"' + song + '"');
-		search.execute();
-		search.once('ready', function() {
-			if (!search.tracks.length || search.tracks.length == 0) {
-				reject(new Error('I could not find any tracks with that name'));
-			} else {
-				resolve(search.tracks[0].getUrl());
+Spotify.prototype.loadTrack = function (item) {
+	var self = this;
+	var track;
+	var type = this.capitalizeFirstLetter(item.type);
+	var obj = libspotify[type].getFromUrl(item.id);
+
+	self.on('track.loaded', function() {
+		try {
+			track.once('ready', function() {
+				self.player.load(track);
+				self.player.play();
+			});
+		} catch(err) {
+			console.log(err.message);
+		}
+	});
+
+	switch (type) {
+		case 'Playlist':
+			var playlist = obj.getTracks( function (tracks) {
+				for (var i in tracks) {
+					self.queue.push({
+						type: 'track',
+						id: tracks[i].getUrl(),
+						item: tracks[i]
+					});
+				}
+				track = self.queue.splice(0, 1)[0].item;
+				self.emit('track.loaded');
+			});
+			break;
+		case 'Track':
+			track = obj;
+			self.emit('track.loaded');
+			break;
+		case 'Album':
+			this.getAlbumTracks(item.id).then(tracks => {
+				self.queue = tracks;
+				track = self.queue.splice(0, 1)[0].item;
+				self.emit('track.loaded');
+			});
+			break;
+		case 'Artist':
+			this.getTracksFromArtist(item.id).then(tracks => {
+				self.queue = tracks;
+				track = self.queue.splice(0, 1)[0].item;
+				self.emit('track.loaded');
+			});
+			break;
+	}
+}
+
+Spotify.prototype.playNext = function (req, res) {
+	if (this.queue.length > 0) {
+		var item = this.queue.splice(0, 1)[0];
+		this.loadTrack(item);
+	} else {
+		this.player.stop();
+	}
+}
+
+Spotify.prototype.capitalizeFirstLetter = function (str) {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+Spotify.prototype.formatTitle = function (str) {
+	return str.replace('&', 'and').replace(/[&\/\\#,+\(\)$~%\.!^'"\;:*?\[\]<>{}]/g, '').toLowerCase();
+}
+
+
+Spotify.prototype.getAlbumTracks = function (id) {
+    var self = this;
+
+	return new Promise((resolve, reject) => {
+		rp({ uri: util.format(self.tracksFromAlbum, id.split('spotify:album:')[1]), json: true })
+			.then(data => {
+				if (data.items.length > 0) {
+					var tracks = [];
+					for (var i = 0; i < data.items.length; i++) {
+						tracks.push({
+							type: 'track',
+							id: data.items[i].uri,
+							item: libspotify.Track.getFromUrl(data.items[i].uri)
+						});
+					}
+					return resolve(tracks);
+				} else {
+					throw new Error('No tracks could be found for this album');
+				}
+			})
+			.catch(err => {
+				return reject(new Error(err.message));
+			});
+	});
+}
+
+Spotify.prototype.getTracksFromArtist = function (id) {
+	var self = this;
+
+	return new Promise((resolve, reject) => {
+		rp({ uri: util.format(self.tracksFromArtist, id.split('spotify:artist:')[1]), json: true })
+			.then(data => {
+				if (data.tracks.length > 0) {
+					var tracks = [];
+					for (var i = 0; i < data.tracks.length; i++) {
+						tracks.push({
+							type: 'track',
+							id: data.tracks[i].uri,
+							item: libspotify.Track.getFromUrl(data.tracks[i].uri)
+						});
+					}
+					return resolve(tracks);
+				} else {
+					throw new Error('No tracks could be found for this artist');
+				}
+			})
+			.catch(err => {
+				return reject(new Error(err.message));
+			});
+	});
+}
+
+Spotify.prototype.getUserPlaylists = function () {
+	var self = this;
+	var container = this.session.getPlaylistcontainer();
+	container.once('ready', function() {
+		container.getPlaylists(function (playlists) {
+			for (var i = 0; i < playlists.length; i++) {
+				self.playlists.push({
+					type: 'playlist',
+					title: playlists[i].name,
+					image: self.defaultImage,
+					url: playlists[i].getUrl()
+				});
 			}
+			self.emit('loaded');
 		});
 	});
 }
+
+Spotify.prototype.searchUserPlaylists = function (item) {
+	var self = this;
+	return new Promise((resolve, reject) => {
+		var userPlaylist = self.playlists.filter(function(obj) {
+			return self.formatTitle(obj.title) === item.toLowerCase();
+		});
+
+		if (userPlaylist.length > 0) {
+			return resolve(userPlaylist[0]);
+		} else {
+			return reject(new Error(util.format(self.defaultError, 'playlists')));
+		}
+	});
+}
+
+Spotify.prototype.searchAll = function (type, term) {
+	var self = this;
+	var identifer = type + 's';
+
+	return new Promise((resolve, reject) => {
+		rp({ uri: util.format(self.searchUrl, type, term), json: true })
+			.then(data => {
+				if (data[identifer].items.length > 0) {
+					return resolve(data[identifer]);
+				} else {
+					throw new Error();
+				}
+			})
+			.catch(err => {
+				return reject(new Error(util.format(self.defaultError, identifer)));
+			});
+	});
+}
+
+// Public Methods
+Spotify.prototype.searchPlaylists = function (term) {
+	var self = this;
+	var type = 'playlist';
+	var index = 0;
+
+	return new Promise((resolve, reject) => {
+		self.searchUserPlaylists(term)
+		.then(data => {
+			return resolve(data);
+		})
+		.catch(err => {
+			self.searchAll.call(self, type, term)
+				.then(data => {
+						for (var i in data.items) {
+							if (self.formatTitle(data.items[i].name) == term.toLowerCase()) {
+								index = i;
+								break;
+							}
+						}
+
+						return resolve({
+							type: type,
+							title: data.items[index].name,
+							image: data.items[index].images[0].url,
+							url: data.items[index].uri
+						});
+					})
+				.catch(err => {
+					return reject(new Error(util.format(self.defaultError, 'playlists')));
+				});
+		})
+	});
+}
+
+Spotify.prototype.searchTracks = function (term) {
+	var self = this;
+	var type = 'track';
+
+	return new Promise((resolve, reject) => {
+		self.searchAll.call(this, type, term)
+			.then(data => {
+				return resolve({
+					type: type,
+					title: data.items[0].name,
+					artist: data.items[0].artists[0].name,
+					image: data.items[0].album.images[0].url,
+					url: data.items[0].uri
+				});
+			})
+			.catch(err => {
+				return reject(new Error(util.format(self.defaultError, 'tracks')));
+			});
+	});
+}
+
+Spotify.prototype.searchArtists = function (term) {
+	var self = this;
+	var type = 'artist';
+
+	return new Promise((resolve, reject) => {
+		self.searchAll.call(this, type, term)
+			.then(data => {
+				return resolve({
+					type: type,
+					title: data.items[0].name,
+					artist: term,
+					image: data.items[0].images[0].url,
+					url: data.items[0].uri
+				});
+			})
+			.catch(err => {
+				return reject(new Error(util.format(self.defaultError, 'artists')));
+			});
+	});
+}
+
+Spotify.prototype.searchAlbums = function (term) {
+	var self = this;
+	var type = 'album';
+
+	return new Promise((resolve, reject) => {
+		self.searchAll.call(this, type, term)
+			.then(data => {
+				return resolve({
+					type: type,
+					title: data.items[0].name,
+					artist: data.items[0].artists[0].name,
+					image: data.items[0].images[0].url,
+					url: data.items[0].uri
+				});
+			})
+			.catch(err => {
+				return reject(new Error(util.format(self.defaultError, 'albums')));
+			});
+	});
+}
+// End Public Methods
 
 module.exports = Spotify;
