@@ -8,7 +8,7 @@ var util = require('util');
 var alexaApp = new alexa.app('SongCast');
 var app = express();
 var spotify = new Spotify();
-var port = 3001;
+var port = 3000;
 
 spotify.on('loaded', function() {
 	var options = {
@@ -132,7 +132,8 @@ spotify.on('loaded', function() {
 				response.card({
 					type: 'Standard',
 					title: speech_text,
-					text: ''
+					text: '',
+					image: { smallImageUrl: data.image }
 				});
 				response.say(speech_text).shouldEndSession(true).send();
 			})
@@ -189,7 +190,7 @@ spotify.on('loaded', function() {
 	function (request, response) {
 		return spotify.searchAlbums(request.slot('album'))
 			.then(data => {
-				var speech_text = util.format('Playing %s %s by %s', data.title, data.artist)
+				var speech_text = util.format('Playing %s by %s', data.title, data.artist)
 				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
 
 				response.card({

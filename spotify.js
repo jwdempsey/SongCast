@@ -1,3 +1,4 @@
+var cheerio = require('cheerio');
 var dotenv = require('dotenv');
 var EventEmitter = require("events").EventEmitter;
 var express = require('express');
@@ -66,7 +67,6 @@ Spotify.prototype.loadTrack = function (item) {
 	var self = this;
 	var track;
 	var type = this.capitalizeFirstLetter(item.type);
-	var obj = libspotify[type].getFromUrl(item.id);
 
 	self.on('track.loaded', function() {
 		try {
@@ -79,9 +79,16 @@ Spotify.prototype.loadTrack = function (item) {
 		}
 	});
 
-	switch (type) {
-		case 'Playlist':
-			var playlist = obj.getTracks( function (tracks) {
+	switch (item.type) {
+		case 'spotify_playlist':
+			self.getPublicPlaylistTracks(item.id).then(tracks => {
+				self.queue = tracks;
+				track = self.queue.splice(0, 1)[0].item;
+				self.emit('track.loaded');
+			});
+			break;
+		case 'playlist':
+			libspotify[type].getFromUrl(item.id).getTracks(tracks => {
 				for (var i in tracks) {
 					self.queue.push({
 						type: 'track',
@@ -93,18 +100,18 @@ Spotify.prototype.loadTrack = function (item) {
 				self.emit('track.loaded');
 			});
 			break;
-		case 'Track':
-			track = obj;
+		case 'track':
+			track = libspotify[type].getFromUrl(item.id);
 			self.emit('track.loaded');
 			break;
-		case 'Album':
+		case 'album':
 			this.getAlbumTracks(item.id).then(tracks => {
 				self.queue = tracks;
 				track = self.queue.splice(0, 1)[0].item;
 				self.emit('track.loaded');
 			});
 			break;
-		case 'Artist':
+		case 'artist':
 			this.getTracksFromArtist(item.id).then(tracks => {
 				self.queue = tracks;
 				track = self.queue.splice(0, 1)[0].item;
@@ -131,6 +138,29 @@ Spotify.prototype.formatTitle = function (str) {
 	return str.replace('&', 'and').replace(/[&\/\\#,+\(\)$~%\.!^'"\;:*?\[\]<>{}]/g, '').toLowerCase();
 }
 
+Spotify.prototype.getPublicPlaylistTracks = function (url) {
+	var self = this;
+	var tracks = [];
+
+	return new Promise((resolve, reject) => {
+		rp({uri: decodeURIComponent(url)})
+			.then(html => {
+				var $ = cheerio.load(html);
+				var data = $('meta[property="music:song"]').each(function(i, elem) {
+					var id = 'spotify:track:' + $(this).prop('content').split('https://open.spotify.com/track/')[1];
+					tracks.push({
+						type: 'track',
+						id: id,
+						item: libspotify.Track.getFromUrl(id)
+					});
+				});
+				resolve(tracks);
+			})
+			.catch(err => {
+				return reject(new Error(err.message));
+			});
+	});
+}
 
 Spotify.prototype.getAlbumTracks = function (id) {
     var self = this;
@@ -256,12 +286,11 @@ Spotify.prototype.searchPlaylists = function (term) {
 								break;
 							}
 						}
-
 						return resolve({
-							type: type,
+							type: 'spotify_playlist',
 							title: data.items[index].name,
 							image: data.items[index].images[0].url,
-							url: data.items[index].uri
+							url: encodeURIComponent(data.items[index].external_urls.spotify)
 						});
 					})
 				.catch(err => {
