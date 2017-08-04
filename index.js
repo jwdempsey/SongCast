@@ -1,7 +1,6 @@
 var alexa = require('alexa-app');
 var Cast = require('./cast');
 var express = require('express');
-var ngrok = require('ngrok');
 var Spotify = require('./spotify');
 var util = require('util');
 
@@ -9,56 +8,61 @@ var alexaApp = new alexa.app('SongCast');
 var app = express();
 var spotify = new Spotify();
 var port = 3000;
+var debugMode = false;
+
+var options = {
+	expressApp: app,
+	checkCert: true,
+	debug: false
+};
+
+if (process.env.NODE_ENV == 'debug') {
+	debugMode = true;
+	options.checkCert = false;
+	options.debug = true;
+	app.set('view engine', 'ejs');
+	console.log('Songcast debug mode can now be accessed at: http://localhost:' + port + '/songcast');
+}
+
+alexaApp.express(options);
+
+alexaApp.launch(function (req, res) {
+	var prompt = 'I can cast Spotify tracks, albums, artists and playlists to all your Chromecast devices.';
+	res.say(prompt);
+});
+
+alexaApp.intent('AMAZON.StopIntent', {
+	'slots': {},
+	'utterances': []
+	},
+	function (request, response) {
+		Cast.stop();
+		response.say('Stopping music on all devices').shouldEndSession(true).send();
+	}
+);
+
+alexaApp.error = function(exception, request, response) {
+	response.say("An error occurred and the previous request could not be completed. Please try again.").shouldEndSession(true).send();
+};
+
+app.listen(port);
 
 spotify.on('loaded', function() {
-	var options = {
-		expressApp: app,
-		checkCert: true,
-		debug: false
-	};
-
-	if (process.env.NODE_ENV == 'debug') {
-		options.checkCert = false;
-		options.debug = true;
-		app.set('view engine', 'ejs');
-
-		console.log('Songcast debug mode can now be accessed at: http://localhost:' + port + '/songcast');
-	}
-
-	if (process.env.NODE_ENV === 'prod') {
-		ngrok.connect({
-			proto: 'http',
-			addr: port,
-			host_header: 'rewrite ' + port,
-			bind_tls: true
-		}, function (err, url) {
-			console.log('Songcast can now be accessed at: ' + url + '/songcast');
-		});
-
-		ngrok.once('error', function (err) {
-			console.log(err.message);
-		});
-	}
-
-	alexaApp.express(options);
-
-	alexaApp.launch(function (req, res) {
-		var prompt = 'I can cast Spotify tracks, albums, artists and playlists to all your Chromecast devices.';
-		res.say(prompt);
-	});
-
 	alexaApp.intent('PlayTrackIntent', {
 		'slots': {
 			'track': 'AMAZON.MusicRecording',
-			'device': 'AMAZON.LITERAL'
+			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the song {-|track} on {Downstairs|device}',
-			'Play song {-|track} on {Downstairs|device}',
-			'Play {-|track} on {Downstairs|device}'
+			'Play the song {-|track} on {-|device}',
+			'Play song {-|track} on {-|device}',
+			'Play {-|track} on {-|device}'
 		]
 	},
 	function (request, response) {
+		if (debugMode)
+			console.log(request.slot('track'));
+
 		return spotify.searchTracks(request.slot('track'))
 			.then(data => {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
@@ -82,15 +86,18 @@ spotify.on('loaded', function() {
 		'slots': {
 			'track': 'AMAZON.MusicRecording',
 			'artist': 'AMAZON.MusicGroup',
-			'device': 'AMAZON.LITERAL'
+			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the song {-|track} by {-|artist} on {Downstairs|device}',
-			'Play song {-|track} by {-|artist} on {Downstairs|device}',
-			'Play {-|track} by {-|artist} on {Downstairs|device}'
+			'Play the song {-|track} by {-|artist} on {-|device}',
+			'Play song {-|track} by {-|artist} on {-|device}',
+			'Play {-|track} by {-|artist} on {-|device}'
 		]
 	},
 	function (request, response) {
+		if (debugMode)
+			console.log(request.slot('track') + ' ' + request.slot('artist'));
+
 		return spotify.searchTracks(request.slot('track') + ' ' + request.slot('artist'))
 			.then(data => {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
@@ -113,17 +120,20 @@ spotify.on('loaded', function() {
 	alexaApp.intent('StartPlaylistIntent', {
 		'slots': {
 			'playlist': 'AMAZON.MusicPlaylist',
-			'device': 'AMAZON.LITERAL'
+			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play {-|playlist} playlist on {Downstairs|device}',
-			'Playlist {-|playlist} on {Downstairs|device}',
-			'Start playlist {-|playlist} on {Downstairs|device}',
-			'Play songs from my {-|playlist} playlist on {Downstairs|device}',
-			'Play playlist {-|playlist} on {Downstairs|device}'
+			'Play {-|playlist} playlist on {-|device}',
+			'Playlist {-|playlist} on {-|device}',
+			'Start playlist {-|playlist} on {-|device}',
+			'Play songs from my {-|playlist} playlist on {-|device}',
+			'Play playlist {-|playlist} on {-|device}'
 		]
 	},
 	function (request, response) {
+		if (debugMode)
+			console.log(request.slot('playlist'));
+
 		return spotify.searchPlaylists(request.slot('playlist'))
 			.then(data => {
 				var speech_text = util.format('Playing songs from %s', data.title)
@@ -146,18 +156,21 @@ spotify.on('loaded', function() {
 	alexaApp.intent('StartArtistIntent', {
 		'slots': {
 			'artist': 'AMAZON.MusicGroup',
-			'device': 'AMAZON.LITERAL'
+			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play artist {-|artist} on {Downstairs|device}',
-			'Play songs by {-|artist} on {Downstairs|device}',
-			'Play top songs by {-|artist} on {Downstairs|device}',
-			'Play top tracks by {-|artist} on {Downstairs|device}',
-			'Play music by {-|artist} on {Downstairs|device}',
-			'Play tracks by {-|artist} on {Downstairs|device}',
+			'Play artist {-|artist} on {-|device}',
+			'Play songs by {-|artist} on {-|device}',
+			'Play top songs by {-|artist} on {-|device}',
+			'Play top tracks by {-|artist} on {-|device}',
+			'Play music by {-|artist} on {-|device}',
+			'Play tracks by {-|artist} on {-|device}',
 		]
 	},
 	function (request, response) {
+		if (debugMode)
+			console.log(request.slot('artist'));
+
 		return spotify.searchArtists(request.slot('artist'))
 			.then(data => {
 				var speech_text = util.format('Playing top tracks by %s', data.title);
@@ -180,14 +193,17 @@ spotify.on('loaded', function() {
 	alexaApp.intent('StartAlbumIntent', {
 		'slots': {
 			'album': 'AMAZON.MusicAlbum',
-			'device': 'AMAZON.LITERAL'
+			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the album {-|album} on {Downstairs|device}',
-			'Play album {-|album} on {Downstairs|device}'
+			'Play the album {-|album} on {-|device}',
+			'Play album {-|album} on {-|device}'
 		]
 	},
 	function (request, response) {
+		if (debugMode)
+			console.log(request.slot('album'));
+
 		return spotify.searchAlbums(request.slot('album'))
 			.then(data => {
 				var speech_text = util.format('Playing %s by %s', data.title, data.artist)
@@ -206,22 +222,6 @@ spotify.on('loaded', function() {
 			});
 		}
 	);
-
-	alexaApp.intent('AMAZON.StopIntent', {
-		'slots': {},
-		'utterances': []
-		},
-		function (request, response) {
-			Cast.stop();
-			response.say('Stopping music on all devices').shouldEndSession(true).send();
-		}
-	);
-
-	alexaApp.error = function(exception, request, response) {
-		response.say("An error occurred and the previous request could not be completed. Please try again.").shouldEndSession(true).send();
-	};
-
-	app.listen(port);
 });
 
 module.exports = alexaApp;

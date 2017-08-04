@@ -9,7 +9,6 @@
     "alexa-app": "^4.0.0",
     "bluebird": "^3.4.7",
     "castv2-client": "^1.2.0",
-    "cheerio": "^0.22.0",
     "dotenv": "^4.0.0",
     "ejs": "^2.5.6",
     "express": "^4.14.0",
@@ -17,8 +16,7 @@
     "libspotify": "git+https://github.com/FylmTM/node-libspotify.git",
     "mdns": "^2.3.3",
     "ngrok": "^2.2.6",
-    "request": "^2.81.0",
-    "request-promise": "^4.1.1"
+    "spotify-web-api-node": "^2.4.0"
   },
   "repository": {
     "type": "git",

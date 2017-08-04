@@ -4,3 +4,9 @@ tunnels:
     addr: 3000
     host_header: rewrite 3000
     bind_tls: true
+
+  spotify:
+    proto: http
+    addr: 9001
+    host_header: rewrite 9001
+    bind_tls: true

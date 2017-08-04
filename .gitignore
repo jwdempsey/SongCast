@@ -45,5 +45,5 @@ Temporary Items
 .apdisk
 
 # Other
-test.js
+test*.js
 .env

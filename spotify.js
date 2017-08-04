@@ -1,35 +1,49 @@
-var cheerio = require('cheerio');
 var dotenv = require('dotenv');
 var EventEmitter = require("events").EventEmitter;
 var express = require('express');
 var lame = require('lame');
 var libspotify = require('libspotify');
 var Promise = require("bluebird");
-var rp = require('request-promise');
+var SpotifyWebApi = require('spotify-web-api-node');
 var util = require('util');
 
 function Spotify() {
 	var self = this;
 	dotenv.load();
 	EventEmitter.call(this);
-	this.encoder = lame.Encoder({ channels: 2, bitDepth: 16, sampleRate: 44100 });
-
-	this.playlists = [];
 	this.queue = [];
+	this.playlists = [];
 	this.port = 9001;
-	this.searchUrl = 'https://api.spotify.com/v1/search?type=%s&q=%s';
-	this.tracksFromArtist = 'https://api.spotify.com/v1/artists/%s/top-tracks?country=US';
-	this.tracksFromAlbum = 'https://api.spotify.com/v1/albums/%s/tracks';
-	this.defaultImage = 'https://developer.spotify.com/wp-content/uploads/2016/07/icon3@2x.png'
 	this.defaultError = 'I could not find any %s with that name';
+	this.scopes = [
+		'playlist-read-private',
+		'playlist-read-collaborative',
+		'playlist-modify-public',
+		'playlist-modify-private',
+		'streaming',
+		'ugc-image-upload',
+		'user-follow-modify',
+		'user-follow-read',
+		'user-library-read',
+		'user-library-modify',
+		'user-read-private',
+		'user-read-birthdate',
+		'user-read-email',
+		'user-top-read'
+	];
+
+	this.spotifyApi = new SpotifyWebApi({
+		clientId : process.env.clientId,
+		clientSecret : process.env.clientSecret,
+		redirectUri : process.env.redirectUri
+	});
 
 	this.session = new libspotify.Session({
 		applicationKey: __dirname + '/spotify_appkey.key'
 	});
+
 	this.session.login(process.env.username, process.env.password);
 	this.session.once('login', function(err) {
-		self.getUserPlaylists.call(self);
-
 		self.app = express();
 		self.app.get('/:type/:id', function(req, res) {
 			self.startStream.call(self, req, res);
@@ -38,14 +52,44 @@ function Spotify() {
 				self.playNext.call(self, req, res);
 			});
 		});
+
+		self.app.get('/callback', function(req, res) {
+			self.getToken.call(self, req, res);
+		});
+
+		self.app.get('/', function(req, res) {
+			if (!self.spotifyApi.getAccessToken() || !self.spotifyApi.getRefreshToken()) {
+				var url = self.spotifyApi.createAuthorizeURL(self.scopes, 'token-retrieved');
+				res.redirect(url);
+			} else {
+				res.send('token retrieved successfully');
+			}
+
+		});
+
 		self.app.listen(self.port);
 	});
 
+	this.encoder = lame.Encoder({ channels: 2, bitDepth: 16, sampleRate: 44100 });
 	this.player = this.session.getPlayer();
 	this.player.pipe(this.encoder);
 }
 
 util.inherits(Spotify, EventEmitter);
+
+Spotify.prototype.getToken = function (req, res) {
+	var self = this;
+	this.spotifyApi.authorizationCodeGrant(req.query.code)
+	.then(function(data) {
+		self.spotifyApi.setAccessToken(data.body['access_token']);
+		self.spotifyApi.setRefreshToken(data.body['refresh_token']);
+		self.loadUserPlaylists.call(self);
+		res.redirect('/?state=' + req.query.state);
+
+	}, function(err) {
+		return reject(new Error(err.message));
+	});
+}
 
 Spotify.prototype.startStream = function (req, res) {
 	this.queue = [];
@@ -63,6 +107,31 @@ Spotify.prototype.startStream = function (req, res) {
 	});
 }
 
+Spotify.prototype.loadUserPlaylists = function() {
+	var self = this;
+	self.spotifyApi.getMe()
+	.then(function(user) {
+		self.spotifyApi.getUserPlaylists(user.body.id)
+		.then(function(playlists) {
+			var items = playlists.body.items;
+			for (var i = 0; i < items.length; i++) {
+				self.playlists.push({
+					type: 'playlist',
+					title: items[i].name,
+					image: items[i].images[0].url,
+					url: items[i].uri
+				});
+			}
+			self.emit('loaded');
+		},function(err) {
+			return reject(new Error(err.message));
+		});
+
+	}, function(err) {
+		return reject(new Error(err.message));
+	});
+}
+
 Spotify.prototype.loadTrack = function (item) {
 	var self = this;
 	var track;
@@ -75,7 +144,7 @@ Spotify.prototype.loadTrack = function (item) {
 				self.player.play();
 			});
 		} catch(err) {
-			console.log(err.message);
+			return reject(new Error(err.message));
 		}
 	});
 
@@ -138,96 +207,76 @@ Spotify.prototype.formatTitle = function (str) {
 	return str.replace('&', 'and').replace(/[&\/\\#,+\(\)$~%\.!^'"\;:*?\[\]<>{}]/g, '').toLowerCase();
 }
 
-Spotify.prototype.getPublicPlaylistTracks = function (url) {
+Spotify.prototype.getPublicPlaylistTracks = function (id) {
 	var self = this;
 	var tracks = [];
 
 	return new Promise((resolve, reject) => {
-		rp({uri: decodeURIComponent(url)})
-			.then(html => {
-				var $ = cheerio.load(html);
-				var data = $('meta[property="music:song"]').each(function(i, elem) {
-					var id = 'spotify:track:' + $(this).prop('content').split('https://open.spotify.com/track/')[1];
+		self.spotifyApi.getPlaylistTracks('spotify', id)
+		.then(function(data) {
+			if (data.body.items.length > 0) {
+				var item = data.body.items;
+				for (var i=0; i < item.length; i++) {
 					tracks.push({
 						type: 'track',
-						id: id,
-						item: libspotify.Track.getFromUrl(id)
+						id: item[i].track.uri,
+						item: libspotify.Track.getFromUrl(item[i].track.uri)
 					});
-				});
+				}
+
 				resolve(tracks);
-			})
-			.catch(err => {
-				return reject(new Error(err.message));
-			});
+			}
+
+		}, function(err) {
+			return reject(new Error(err.message));
+		});
 	});
 }
 
 Spotify.prototype.getAlbumTracks = function (id) {
     var self = this;
-
 	return new Promise((resolve, reject) => {
-		rp({ uri: util.format(self.tracksFromAlbum, id.split('spotify:album:')[1]), json: true })
-			.then(data => {
-				if (data.items.length > 0) {
-					var tracks = [];
-					for (var i = 0; i < data.items.length; i++) {
-						tracks.push({
-							type: 'track',
-							id: data.items[i].uri,
-							item: libspotify.Track.getFromUrl(data.items[i].uri)
-						});
-					}
-					return resolve(tracks);
-				} else {
-					throw new Error('No tracks could be found for this album');
+		self.spotifyApi.getAlbumTracks(id)
+		.then(function(data) {
+			if (data.body.items.length > 0) {
+				var tracks = [];
+				for (var i = 0; i < data.body.items.length; i++) {
+					tracks.push({
+						type: 'track',
+						id: data.body.items[i].uri,
+						item: libspotify.Track.getFromUrl(data.body.items[i].uri)
+					});
 				}
-			})
-			.catch(err => {
-				return reject(new Error(err.message));
-			});
+				return resolve(tracks);
+			} else {
+				throw new Error('No tracks could be found for this album');
+			}
+		}, function(err) {
+			return reject(new Error(err.message));
+		});
 	});
 }
 
 Spotify.prototype.getTracksFromArtist = function (id) {
 	var self = this;
-
 	return new Promise((resolve, reject) => {
-		rp({ uri: util.format(self.tracksFromArtist, id.split('spotify:artist:')[1]), json: true })
-			.then(data => {
-				if (data.tracks.length > 0) {
-					var tracks = [];
-					for (var i = 0; i < data.tracks.length; i++) {
-						tracks.push({
-							type: 'track',
-							id: data.tracks[i].uri,
-							item: libspotify.Track.getFromUrl(data.tracks[i].uri)
-						});
-					}
-					return resolve(tracks);
-				} else {
-					throw new Error('No tracks could be found for this artist');
+		self.spotifyApi.getArtistTopTracks(id, 'US')
+		.then(function(data) {
+			if (data.body.tracks.length > 0) {
+				var tracks = [];
+				for (var i = 0; i < data.body.tracks.length; i++) {
+					tracks.push({
+						type: 'track',
+						id: data.body.tracks[i].uri,
+						item: libspotify.Track.getFromUrl(data.body.tracks[i].uri)
+					});
 				}
-			})
-			.catch(err => {
-				return reject(new Error(err.message));
-			});
-	});
-}
-
-Spotify.prototype.getUserPlaylists = function () {
-	var self = this;
-	var container = this.session.getPlaylistcontainer();
-	container.once('ready', function() {
-		container.getPlaylists(function (playlists) {
-			for (var i = 0; i < playlists.length; i++) {
-				self.playlists.push({
-					type: 'playlist',
-					title: playlists[i].name,
-					image: self.defaultImage,
-					url: playlists[i].getUrl()
-				});
+				return resolve(tracks);
+			} else {
+				throw new Error('No tracks could be found for this artist');
 			}
-			self.emit('loaded');
+		}, function(err) {
+			return reject(new Error(err.message));
 		});
 	});
 }
@@ -247,68 +296,44 @@ Spotify.prototype.searchUserPlaylists = function (item) {
 	});
 }
 
-Spotify.prototype.searchAll = function (type, term) {
-	var self = this;
-	var identifer = type + 's';
-
-	return new Promise((resolve, reject) => {
-		rp({ uri: util.format(self.searchUrl, type, term), json: true })
-			.then(data => {
-				if (data[identifer].items.length > 0) {
-					return resolve(data[identifer]);
-				} else {
-					throw new Error();
-				}
-			})
-			.catch(err => {
-				return reject(new Error(util.format(self.defaultError, identifer)));
-			});
-	});
-}
-
 // Public Methods
 Spotify.prototype.searchPlaylists = function (term) {
 	var self = this;
-	var type = 'playlist';
-	var index = 0;
-
 	return new Promise((resolve, reject) => {
 		self.searchUserPlaylists(term)
 		.then(data => {
 			return resolve(data);
 		})
 		.catch(err => {
-			self.searchAll.call(self, type, term)
-				.then(data => {
-						for (var i in data.items) {
-							if (self.formatTitle(data.items[i].name) == term.toLowerCase()) {
-								index = i;
-								break;
-							}
-						}
-						return resolve({
-							type: 'spotify_playlist',
-							title: data.items[index].name,
-							image: data.items[index].images[0].url,
-							url: encodeURIComponent(data.items[index].external_urls.spotify)
-						});
-					})
-				.catch(err => {
+			self.spotifyApi.searchPlaylists(term)
+			.then(function(data) {
+				var items = data.body.playlists.items;
+				if (items.length > 0) {
+					return resolve({
+						type: 'spotify_playlist',
+						title: items[0].name,
+						image: items[0].images[0].url,
+						url: items[0].id
+					});
+				} else {
 					return reject(new Error(util.format(self.defaultError, 'playlists')));
-				});
+				}
+
+			}, function(err) {
+				return reject(new Error(err.message));
+			});
 		})
 	});
 }
 
 Spotify.prototype.searchTracks = function (term) {
 	var self = this;
-	var type = 'track';
-
 	return new Promise((resolve, reject) => {
-		self.searchAll.call(this, type, term)
+		self.spotifyApi.searchTracks(term)
 			.then(data => {
+				data = data.body.tracks;
 				return resolve({
-					type: type,
+					type: 'track',
 					title: data.items[0].name,
 					artist: data.items[0].artists[0].name,
 					image: data.items[0].album.images[0].url,
@@ -323,17 +348,16 @@ Spotify.prototype.searchTracks = function (term) {
 
 Spotify.prototype.searchArtists = function (term) {
 	var self = this;
-	var type = 'artist';
-
 	return new Promise((resolve, reject) => {
-		self.searchAll.call(this, type, term)
+		self.spotifyApi.searchArtists(term)
 			.then(data => {
+				data = data.body.artists;
 				return resolve({
-					type: type,
+					type: 'artist',
 					title: data.items[0].name,
 					artist: term,
 					image: data.items[0].images[0].url,
-					url: data.items[0].uri
+					url: data.items[0].id
 				});
 			})
 			.catch(err => {
@@ -344,17 +368,16 @@ Spotify.prototype.searchArtists = function (term) {
 
 Spotify.prototype.searchAlbums = function (term) {
 	var self = this;
-	var type = 'album';
-
 	return new Promise((resolve, reject) => {
-		self.searchAll.call(this, type, term)
+		self.spotifyApi.searchTracks('album:' + term)
 			.then(data => {
+				data = data.body.tracks.items[0].album;
 				return resolve({
-					type: type,
-					title: data.items[0].name,
-					artist: data.items[0].artists[0].name,
-					image: data.items[0].images[0].url,
-					url: data.items[0].uri
+					type: 'album',
+					title: data.name,
+					artist: term,
+					image: data.images[0].url,
+					url: data.id
 				});
 			})
 			.catch(err => {

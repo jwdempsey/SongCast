@@ -1,23 +1,27 @@
 # SongCast
-This skill will alow you to play just about anything from a Spotify Premium account on any Chromecast device in your house. You will need to create an Amazon developer account and create a new Amazon skill. The installation instructions below should help you get started.
+This skill will alow you to play just about anything from a Spotify Premium account on any Chromecast device in your house. You will need to create both Amazon and Spotify developer accounts. The installation instructions below should help you get started.
 
 ### Setup
 1. Install libspotfy globally for your OS
 2. Install ngrok globally
-3. Install pm2 globally
-4. Pull down repo (using git clone or download the zip from github)
-5. Run npm install (this assumes you have node already installed)
-6. Create an .env file in the root Songcast directory and add the following lines
+3. Pull down repo (using git clone or download the zip from github)
+4. Run npm install (this assumes you have node already installed)
+5. Start ngrok using the provided yml file
+6. Create a Spotify Developer account and create a new application
+7. Create an .env file in the root Songcast directory and add the following lines
 ```
 username="your spotify username"
 password="your spotify password"
 defaultDevice="a default chromecast device"
+redirectUri="a locally hosted ngrok url"
+clientId="clientId from Spotify"
+clientSecret="clientSecret from Spotify"
 ```
-7. Start ngrok on port 3000 (it should not be run from Songcast as it crashes frequently)
-8. Start Songcast with pm2 (pm2 start index.js). I recommend pm2 as it will make sure your app continues to run forever
-9. Setup Songcast skill on Amazon dev console
+8. Start Songcast by calling "node index.js"
+9. Setup Songcast skill on Amazon Dev Console
 10. Copy utterances/schema into app on Amazon (can be found by running in dev mode and hitting localhost:3000/songcast)
-11. Copy ngrok URL into app on Amazon
+11. Setup Account linking using Auth Code Grant as the Authorization Grant Type
+12. Copy ngrok URL into app on Amazon
 
 ### Current Utterances supported
 ```

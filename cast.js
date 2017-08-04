@@ -9,7 +9,6 @@ function Cast(item) {
 	dotenv.load();
 	var self = this;
 	var device = item.device || process.env.defaultDevice || '';
-
 	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
 		if (service.txtRecord.fn.toLowerCase() === device.toLowerCase()) {
