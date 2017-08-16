@@ -60,13 +60,17 @@ spotify.on('loaded', function() {
 		]
 	},
 	function (request, response) {
-		if (debugMode)
+		if (debugMode) {
 			console.log(request.slot('track'));
+		}
 
 		return spotify.searchTracks(request.slot('track'))
 			.then(data => {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
-				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+
+				if (!debugMode) {
+					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+				}
 
 				response.card({
 					type: 'Standard',
@@ -95,13 +99,17 @@ spotify.on('loaded', function() {
 		]
 	},
 	function (request, response) {
-		if (debugMode)
+		if (debugMode) {
 			console.log(request.slot('track') + ' ' + request.slot('artist'));
+		}
 
 		return spotify.searchTracks(request.slot('track') + ' ' + request.slot('artist'))
 			.then(data => {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
-				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+
+				if (!debugMode) {
+					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+				}
 
 				response.card({
 					type: 'Standard',
@@ -131,13 +139,17 @@ spotify.on('loaded', function() {
 		]
 	},
 	function (request, response) {
-		if (debugMode)
+		if (debugMode) {
 			console.log(request.slot('playlist'));
+		}
 
 		return spotify.searchPlaylists(request.slot('playlist'))
 			.then(data => {
 				var speech_text = util.format('Playing songs from %s', data.title)
-				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+
+				if (!debugMode) {
+					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+				}
 
 				response.card({
 					type: 'Standard',
@@ -168,13 +180,17 @@ spotify.on('loaded', function() {
 		]
 	},
 	function (request, response) {
-		if (debugMode)
+		if (debugMode) {
 			console.log(request.slot('artist'));
+		}
 
 		return spotify.searchArtists(request.slot('artist'))
 			.then(data => {
 				var speech_text = util.format('Playing top tracks by %s', data.title);
-				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+
+				if (!debugMode) {
+					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+				}
 
 				response.card({
 					type: 'Standard',
@@ -201,13 +217,17 @@ spotify.on('loaded', function() {
 		]
 	},
 	function (request, response) {
-		if (debugMode)
+		if (debugMode) {
 			console.log(request.slot('album'));
+		}
 
 		return spotify.searchAlbums(request.slot('album'))
 			.then(data => {
 				var speech_text = util.format('Playing %s by %s', data.title, data.artist)
-				var cast = new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+
+				if (!debugMode) {
+					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+				}
 
 				response.card({
 					type: 'Standard',

@@ -9,7 +9,13 @@ function Cast(item) {
 	dotenv.load();
 	var self = this;
 	var device = item.device || process.env.defaultDevice || '';
-	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
+	var sequence = [
+		mdns.rst.DNSServiceResolve(),
+		'DNSServiceGetAddrInfo' in mdns.dns_sd ? mdns.rst.DNSServiceGetAddrInfo() : mdns.rst.getaddrinfo({families:[4]}),
+		mdns.rst.makeAddressesUnique()
+	];
+
+	var browser = mdns.createBrowser(mdns.tcp('googlecast'), {resolverSequence: sequence});
 	browser.on('serviceUp', function(service) {
 		if (service.txtRecord.fn.toLowerCase() === device.toLowerCase()) {
 			self._ondeviceup(service.addresses[0], item.data, item.port);

@@ -6,9 +6,10 @@ This skill will alow you to play just about anything from a Spotify Premium acco
 2. Install ngrok globally
 3. Pull down repo (using git clone or download the zip from github)
 4. Run npm install (this assumes you have node already installed)
-5. Start ngrok using the provided yml file
-6. Create a Spotify Developer account and create a new application
-7. Create an .env file in the root Songcast directory and add the following lines
+5. Install libavahi-compat-libdnssd-dev (if necessary)
+6. Start ngrok using the provided yml file (ngrok start -config /path/to/ngrok.yml --all)
+7. Create a Spotify Developer account and create a new application
+8. Create an .env file in the root Songcast directory and add the following lines
 ```
 username="your spotify username"
 password="your spotify password"
@@ -17,11 +18,11 @@ redirectUri="a locally hosted ngrok url"
 clientId="clientId from Spotify"
 clientSecret="clientSecret from Spotify"
 ```
-8. Start Songcast by calling "node index.js"
-9. Setup Songcast skill on Amazon Dev Console
-10. Copy utterances/schema into app on Amazon (can be found by running in dev mode and hitting localhost:3000/songcast)
-11. Setup Account linking using Auth Code Grant as the Authorization Grant Type
-12. Copy ngrok URL into app on Amazon
+9. Start Songcast by calling "node index.js"
+10. Setup Songcast skill on Amazon Dev Console
+11. Copy utterances/schema into app on Amazon (can be found by running in debug mode and hitting localhost:3000/songcast after getting a valid Spotify token)
+12. Setup Account linking using Auth Code Grant as the Authorization Grant Type
+13. Copy ngrok URL into app on Amazon
 
 ### Current Utterances supported
 ```
