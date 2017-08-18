@@ -14,6 +14,7 @@ function Spotify() {
 	this.queue = [];
 	this.playlists = [];
 	this.port = 9001;
+	this.expiresIn = 0;
 	this.defaultError = 'I could not find any %s with that name';
 	this.scopes = [
 		'playlist-read-private',
@@ -83,9 +84,21 @@ Spotify.prototype.getToken = function (req, res) {
 	.then(function(data) {
 		self.spotifyApi.setAccessToken(data.body['access_token']);
 		self.spotifyApi.setRefreshToken(data.body['refresh_token']);
+		self.expiresIn = data.body['expires_in'];
 		self.loadUserPlaylists.call(self);
 		res.redirect('/?state=' + req.query.state);
 
+	}, function(err) {
+		return reject(new Error(err.message));
+	});
+}
+
+Spotify.prototype.refreshToken = function () {
+	var self = this;
+	this.spotifyApi.refreshAccessToken()
+	.then(function(data) {
+		self.spotifyApi.setAccessToken(data.body['access_token']);
+		self.expiresIn = data.body['expires_in'];
 	}, function(err) {
 		return reject(new Error(err.message));
 	});
@@ -122,6 +135,7 @@ Spotify.prototype.loadUserPlaylists = function() {
 					url: items[i].uri
 				});
 			}
+			setInterval(() => self.refreshToken(), self.expiresIn * 1000);
 			self.emit('loaded');
 		},function(err) {
 			return reject(new Error(err.message));
@@ -200,7 +214,7 @@ Spotify.prototype.playNext = function (req, res) {
 }
 
 Spotify.prototype.capitalizeFirstLetter = function (str) {
-	return str.charAt(0).toUpperCase() + str.slice(1);
+	return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
 }
 
 Spotify.prototype.formatTitle = function (str) {
@@ -355,7 +369,7 @@ Spotify.prototype.searchArtists = function (term) {
 				return resolve({
 					type: 'artist',
 					title: data.items[0].name,
-					artist: term,
+					artist: self.capitalizeFirstLetter(term),
 					image: data.items[0].images[0].url,
 					url: data.items[0].id
 				});
@@ -375,7 +389,7 @@ Spotify.prototype.searchAlbums = function (term) {
 				return resolve({
 					type: 'album',
 					title: data.name,
-					artist: term,
+					artist: self.capitalizeFirstLetter(term),
 					image: data.images[0].url,
 					url: data.id
 				});

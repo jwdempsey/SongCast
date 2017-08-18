@@ -77,7 +77,7 @@ Cast.stop = function() {
 				if (sessions.length > 0) {
 					client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
 						client.stop(app, function(err, response) {
-							console.log('stopping all devices');
+							console.log('stopping music on ' + service.txtRecord.fn);
 						});
 					});
 				}
