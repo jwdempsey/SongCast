@@ -9,27 +9,26 @@ function Cast(item) {
 	dotenv.load();
 	var self = this;
 	var device = item.device || process.env.defaultDevice || '';
-	var sequence = [
-		mdns.rst.DNSServiceResolve(),
-		'DNSServiceGetAddrInfo' in mdns.dns_sd ? mdns.rst.DNSServiceGetAddrInfo() : mdns.rst.getaddrinfo({families:[4]}),
-		mdns.rst.makeAddressesUnique()
-	];
+	mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
+		? mdns.rst.DNSServiceGetAddrInfo()
+		: mdns.rst.getaddrinfo({families:[4]});
 
-	var browser = mdns.createBrowser(mdns.tcp('googlecast'), {resolverSequence: sequence});
+	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
 		if (service.txtRecord.fn.toLowerCase() === device.toLowerCase()) {
-			self._ondeviceup(service.addresses[0], item.data, item.port);
+			self.onDeviceUp(service.addresses[0], item.data, item.port);
+			browser.stop();
 		}
-
-		browser.stop();
 	});
 
 	browser.start();
 }
 
-Cast.prototype._ondeviceup = function(host, item, port) {
+Cast.prototype.onDeviceUp = function(host, item, port) {
 	var media = {};
 	var client = new Client();
+	ngrok.disconnect();
+
 	client.connect(host, function() {
 		client.launch(DefaultMediaReceiver, function(err, player) {
 			ngrok.connect({
@@ -63,13 +62,11 @@ Cast.prototype._ondeviceup = function(host, item, port) {
 }
 
 Cast.stop = function() {
-	var sequence = [
-		mdns.rst.DNSServiceResolve(),
-		'DNSServiceGetAddrInfo' in mdns.dns_sd ? mdns.rst.DNSServiceGetAddrInfo() : mdns.rst.getaddrinfo({families:[4]}),
-		mdns.rst.makeAddressesUnique()
-	];
+	mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
+		? mdns.rst.DNSServiceGetAddrInfo()
+		: mdns.rst.getaddrinfo({families:[4]});
 
-	var browser = mdns.createBrowser(mdns.tcp('googlecast'), {resolverSequence: sequence});
+	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
 		var client = new Client();
 		client.connect(service.addresses[0], function() {
@@ -77,14 +74,19 @@ Cast.stop = function() {
 				if (sessions.length > 0) {
 					client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
 						client.stop(app, function(err, response) {
+							// add check for only stopping Chromecast Audio
 							console.log('stopping music on ' + service.txtRecord.fn);
+							ngrok.disconnect();
 						});
 					});
 				}
 			});
 		});
+	});
 
-		browser.stop();
+	client.on('error', function(error) {
+		client.close();
+		ngrok.disconnect();
 	});
 
 	browser.start();
