@@ -62,13 +62,13 @@ Cast.prototype.onDeviceUp = function(host, item, port) {
 }
 
 Cast.stop = function() {
+	var client = new Client();
 	mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
 		? mdns.rst.DNSServiceGetAddrInfo()
 		: mdns.rst.getaddrinfo({families:[4]});
 
 	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
-		var client = new Client();
 		client.connect(service.addresses[0], function() {
 			client.getSessions(function(err, sessions) {
 				if (sessions.length > 0) {
@@ -82,6 +82,8 @@ Cast.stop = function() {
 				}
 			});
 		});
+
+		browser.stop();
 	});
 
 	client.on('error', function(error) {
