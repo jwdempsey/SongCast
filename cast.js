@@ -1,3 +1,4 @@
+require('events').EventEmitter.prototype._maxListeners = 100;
 var Client = require('castv2-client').Client;
 var DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver;
 var dotenv = require('dotenv');
@@ -69,19 +70,20 @@ Cast.stop = function() {
 
 	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 	browser.on('serviceUp', function(service) {
-		client.connect(service.addresses[0], function() {
-			client.getSessions(function(err, sessions) {
-				if (sessions.length > 0) {
-					client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
-						client.stop(app, function(err, response) {
-							// add check for only stopping Chromecast Audio
-							console.log('stopping music on ' + service.txtRecord.fn);
-							ngrok.disconnect();
+		if (service.txtRecord.md === 'Chromecast Audio') {
+			client.connect(service.addresses[0], function() {
+				client.getSessions(function(err, sessions) {
+					if (sessions.length > 0) {
+						client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
+							client.stop(app, function(err, response) {
+								console.log('stopping music on ' + service.txtRecord.fn);
+								ngrok.disconnect();
+							});
 						});
-					});
-				}
+					}
+				});
 			});
-		});
+		}
 
 		browser.stop();
 	});
