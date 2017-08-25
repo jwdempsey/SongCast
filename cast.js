@@ -5,7 +5,7 @@ var mdns = require('mdns');
 var ngrok = require('ngrok');
 var util = require('util');
 
-var activeDevice = '192.168.1.118';
+var activeDevice = null;
 dotenv.load();
 mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
 	? mdns.rst.DNSServiceGetAddrInfo()
