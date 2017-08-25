@@ -69,7 +69,7 @@ spotify.on('loaded', function() {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
 
 				if (!debugMode) {
-					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+					Cast.play({ device: request.slot('device'), data: data, port: spotify.port });
 				}
 
 				response.card({
@@ -108,7 +108,7 @@ spotify.on('loaded', function() {
 				var speech_text = util.format('%s by %s', data.title, data.artist);
 
 				if (!debugMode) {
-					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+					Cast.play({ device: request.slot('device'), data: data, port: spotify.port });
 				}
 
 				response.card({
@@ -148,7 +148,7 @@ spotify.on('loaded', function() {
 				var speech_text = util.format('Playing songs from %s', data.title)
 
 				if (!debugMode) {
-					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+					Cast.play({ device: request.slot('device'), data: data, port: spotify.port });
 				}
 
 				response.card({
@@ -189,7 +189,7 @@ spotify.on('loaded', function() {
 				var speech_text = util.format('Playing top tracks by %s', data.title);
 
 				if (!debugMode) {
-					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+					Cast.play({ device: request.slot('device'), data: data, port: spotify.port });
 				}
 
 				response.card({
@@ -226,7 +226,7 @@ spotify.on('loaded', function() {
 				var speech_text = util.format('Playing %s by %s', data.title, data.artist)
 
 				if (!debugMode) {
-					new Cast({ device: request.slot('device'), data: data, port: spotify.port });
+					Cast.play({ device: request.slot('device'), data: data, port: spotify.port });
 				}
 
 				response.card({

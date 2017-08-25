@@ -1,4 +1,3 @@
-require('events').EventEmitter.prototype._maxListeners = 100;
 var Client = require('castv2-client').Client;
 var DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver;
 var dotenv = require('dotenv');
@@ -6,29 +5,15 @@ var mdns = require('mdns');
 var ngrok = require('ngrok');
 var util = require('util');
 
-function Cast(item) {
-	dotenv.load();
-	var self = this;
-	var device = item.device || process.env.defaultDevice || '';
-	mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
-		? mdns.rst.DNSServiceGetAddrInfo()
-		: mdns.rst.getaddrinfo({families:[4]});
+var activeDevice = '192.168.1.118';
+dotenv.load();
+mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
+	? mdns.rst.DNSServiceGetAddrInfo()
+	: mdns.rst.getaddrinfo({families:[4]});
 
-	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
-	browser.on('serviceUp', function(service) {
-		if (service.txtRecord.fn.toLowerCase() === device.toLowerCase()) {
-			self.onDeviceUp(service.addresses[0], item.data, item.port);
-			browser.stop();
-		}
-	});
-
-	browser.start();
-}
-
-Cast.prototype.onDeviceUp = function(host, item, port) {
+function onDeviceUp(host, item, port) {
 	var media = {};
 	var client = new Client();
-	ngrok.disconnect();
 
 	client.connect(host, function() {
 		client.launch(DefaultMediaReceiver, function(err, player) {
@@ -62,38 +47,52 @@ Cast.prototype.onDeviceUp = function(host, item, port) {
 	});
 }
 
-Cast.stop = function() {
-	var client = new Client();
-	mdns.Browser.defaultResolverSequence[1] = 'DNSServiceGetAddrInfo' in mdns.dns_sd
-		? mdns.rst.DNSServiceGetAddrInfo()
-		: mdns.rst.getaddrinfo({families:[4]});
+module.exports = {
+	play: function(item) {
+		var device = item.device || process.env.defaultDevice || '';
+		var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 
-	var browser = mdns.createBrowser(mdns.tcp('googlecast'));
-	browser.on('serviceUp', function(service) {
-		if (service.txtRecord.md === 'Chromecast Audio') {
-			client.connect(service.addresses[0], function() {
-				client.getSessions(function(err, sessions) {
-					if (sessions.length > 0) {
-						client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
-							client.stop(app, function(err, response) {
-								console.log('stopping music on ' + service.txtRecord.fn);
-								ngrok.disconnect();
+		browser.on('serviceUp', function(service) {
+			if (service.txtRecord.fn.toLowerCase() === device.toLowerCase()) {
+				ngrok.disconnect();
+				activeDevice = service.addresses[0];
+				onDeviceUp(service.addresses[0], item.data, item.port);
+				browser.stop();
+			}
+		});
+
+		browser.start();
+	},
+
+	stop: function() {
+		var client = new Client();
+		var browser = mdns.createBrowser(mdns.tcp('googlecast'));
+
+		browser.on('serviceUp', function(service) {
+			if (activeDevice === service.addresses[0]) {
+				client.connect(service.addresses[0], function() {
+					client.getSessions(function(err, sessions) {
+						if (sessions.length > 0) {
+							client.join(sessions[0], DefaultMediaReceiver, function(err, app) {
+								client.stop(app, function(err, response) {
+									console.log('stopping music on ' + service.txtRecord.fn);
+									ngrok.disconnect();
+									activeDevice = null;
+								});
 							});
-						});
-					}
+						}
+					});
 				});
-			});
-		}
+			}
+			browser.stop();
+		});
 
-		browser.stop();
-	});
+		client.on('error', function(error) {
+			client.close();
+			ngrok.disconnect();
+			activeDevice = null;
+		});
 
-	client.on('error', function(error) {
-		client.close();
-		ngrok.disconnect();
-	});
-
-	browser.start();
+		browser.start();
+	}
 }
-
-module.exports = Cast;
