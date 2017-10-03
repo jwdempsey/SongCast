@@ -54,9 +54,9 @@ spotify.on('loaded', function() {
 			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the song {-|track} on {-|device}',
-			'Play song {-|track} on {-|device}',
-			'Play {-|track} on {-|device}'
+			'Cast the song {-|track} to {-|device}',
+			'Cast song {-|track} to {-|device}',
+			'Cast {-|track} to {-|device}'
 		]
 	},
 	function (request, response) {
@@ -93,9 +93,9 @@ spotify.on('loaded', function() {
 			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the song {-|track} by {-|artist} on {-|device}',
-			'Play song {-|track} by {-|artist} on {-|device}',
-			'Play {-|track} by {-|artist} on {-|device}'
+			'Cast the song {-|track} by {-|artist} to {-|device}',
+			'Cast song {-|track} by {-|artist} to {-|device}',
+			'Cast {-|track} by {-|artist} to {-|device}'
 		]
 	},
 	function (request, response) {
@@ -131,11 +131,11 @@ spotify.on('loaded', function() {
 			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play {-|playlist} playlist on {-|device}',
-			'Playlist {-|playlist} on {-|device}',
-			'Start playlist {-|playlist} on {-|device}',
-			'Play songs from my {-|playlist} playlist on {-|device}',
-			'Play playlist {-|playlist} on {-|device}'
+			'Cast {-|playlist} playlist to {-|device}',
+			'Playlist {-|playlist} to {-|device}',
+			'Start playlist {-|playlist} to {-|device}',
+			'Cast songs from my {-|playlist} playlist to {-|device}',
+			'Cast playlist {-|playlist} to {-|device}'
 		]
 	},
 	function (request, response) {
@@ -171,12 +171,12 @@ spotify.on('loaded', function() {
 			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play artist {-|artist} on {-|device}',
-			'Play songs by {-|artist} on {-|device}',
-			'Play top songs by {-|artist} on {-|device}',
-			'Play top tracks by {-|artist} on {-|device}',
-			'Play music by {-|artist} on {-|device}',
-			'Play tracks by {-|artist} on {-|device}',
+			'Cast artist {-|artist} to {-|device}',
+			'Cast songs by {-|artist} to {-|device}',
+			'Cast top songs by {-|artist} to {-|device}',
+			'Cast top tracks by {-|artist} to {-|device}',
+			'Cast music by {-|artist} to {-|device}',
+			'Cast tracks by {-|artist} to {-|device}',
 		]
 	},
 	function (request, response) {
@@ -212,8 +212,8 @@ spotify.on('loaded', function() {
 			'device': 'AMAZON.Room'
 		},
 		'utterances': [
-			'Play the album {-|album} on {-|device}',
-			'Play album {-|album} on {-|device}'
+			'Cast the album {-|album} to {-|device}',
+			'Cast album {-|album} to {-|device}'
 		]
 	},
 	function (request, response) {
